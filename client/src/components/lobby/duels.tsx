@@ -1,14 +1,14 @@
-import { duels_header } from "@/lib/constants";
+import { duels_header } from "@/lib/constants.ts";
 import { Card, Typography } from "@material-tailwind/react";
 import { useProvider } from "@starknet-react/core";
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { StarknetIdNavigator } from "starknetid.js";
 import { constants, StarkProfile } from "starknet";
-import { truncateString } from "@/lib/utils";
-import { DuelsSkeleton } from "./duels-skeleton";
+import { truncateString } from "@/lib/utils.ts";
+import { DuelsSkeleton } from "./duels-skeleton.tsx";
 
-export default function DuelsLobby({ games, transactions }: { games: any, transactions: any }) {
+export default function Duels({ games, transactions }: { games: any, transactions: any }) {
     const { provider } = useProvider();
     const starknetIdNavigator = useMemo(() => {
         return new StarknetIdNavigator(
@@ -19,9 +19,9 @@ export default function DuelsLobby({ games, transactions }: { games: any, transa
     const [challengers, setChallengers] = useState<StarkProfile[]>([]);
     const [challenged, setChallenged] = useState<StarkProfile[]>();
     const [winners, setWinners] = useState<StarkProfile[]>();
-    const challengerAddresses = games.map((game: any) => game.node.player_one);
-    const challengedAddresses = games.map((game: any) => game.node.player_two);
-    const winnerAddresses = games.map((game: any) => game.node.winner);
+    const challengerAddresses = games?.map((game: any) => game.node.player_one);
+    const challengedAddresses = games?.map((game: any) => game.node.player_two);
+    const winnerAddresses = games?.map((game: any) => game.node.winner);
     useEffect(() => {
         if (!starknetIdNavigator || !challengerAddresses) return;
         (async () => {
@@ -48,11 +48,11 @@ export default function DuelsLobby({ games, transactions }: { games: any, transa
     return (
         <div className="w-[874px] h-[874px] bg-[url('./assets/lobby-box-long.png')] bg-contain bg-no-repeat p-8">
             <Card className="w-full h-full bg-transparent">
-                <table className="w-full text-left bg-transparent table-auto">
-                    <thead className="border-b border-[#313640] flex flex-row items-center justify-between w-full">
-                        <tr className="flex flex-row items-center justify-between w-full">
+                <div className="w-full text-left bg-transparent table-auto">
+                    <div className="border-b border-[#313640] flex flex-row items-center justify-between w-full">
+                        <div className="flex flex-row items-center justify-between w-full">
                             {duels_header.map((head) => (
-                                <th
+                                <div
                                     key={head.id}
                                     className="p-4 mr-10"
                                 >
@@ -62,11 +62,11 @@ export default function DuelsLobby({ games, transactions }: { games: any, transa
                                     >
                                         {head.name}
                                     </Typography>
-                                </th>
+                                </div>
                             ))}
-                        </tr>
-                    </thead>
-                    <tbody className="absolute h-[450px] w-[814px] overflow-y-scroll">
+                        </div>
+                    </div>
+                    <div className="absolute h-[450px] w-[814px] overflow-y-scroll">
                         <table className="w-full text-left table-auto">
                             <thead className="border-b border-[#313640] hidden">
                                 <tr className="w-full bg-[#0F1116] flex flex-row items-center justify-between">
@@ -132,8 +132,8 @@ export default function DuelsLobby({ games, transactions }: { games: any, transa
                                 }) : <DuelsSkeleton />}
                             </tbody>
                         </table>
-                    </tbody>
-                </table >
+                    </div>
+                </div >
             </Card >
         </div>
     )

@@ -1,6 +1,4 @@
 import { AccountInterface } from 'starknet'
-import { uuid } from '@latticexyz/utils'
-import { ClientComponents } from './createClientComponents'
 import { getEvents, setComponentsFromEvents } from '@dojoengine/utils'
 import { ContractComponents } from './generated/contractComponents'
 import type { IWorld } from './generated/generated'
@@ -10,20 +8,11 @@ export type SystemCalls = ReturnType<typeof createSystemCalls>
 export function createSystemCalls(
   { client }: { client: IWorld },
   contractComponents: ContractComponents,
-  { GameId, MancalaGame, GamePlayer, Player }: ClientComponents,
 ) {
   const create_initial_game_id = async (account: AccountInterface) => {
-    const movesId = uuid()
-
     try {
       const { transaction_hash } = await client.actions.create_initial_game_id(
         account,
-      )
-
-      console.log(
-        await account.waitForTransaction(transaction_hash, {
-          retryInterval: 100,
-        }),
       )
 
       setComponentsFromEvents(
@@ -36,39 +25,22 @@ export function createSystemCalls(
       )
     } catch (e) {
       console.log(e)
-    } finally {
-      GameId.removeOverride(movesId)
     }
   }
 
   const create_game = async (account: AccountInterface, setGameId: any) => {
-    const movesId = uuid()
-
     try {
       const { transaction_hash } = await client.actions.create_game(account)
 
-      console.log(
-        await account.waitForTransaction(transaction_hash, {
-          retryInterval: 100,
-        }),
-      )
+      const transaction = await account.waitForTransaction(transaction_hash, {
+        retryInterval: 100,
+      })
 
-      const waitForTransaction = await account.waitForTransaction(
-        transaction_hash,
-        {
-          retryInterval: 100,
-        },
-      )
+      const events = getEvents(transaction)
 
-      const events = getEvents(waitForTransaction)
-
-      setComponentsFromEvents(contractComponents, events)
       setGameId(events[0].data[3])
     } catch (e) {
       console.log(e)
-    } finally {
-      GameId.removeOverride(movesId)
-      MancalaGame.removeOverride(movesId)
     }
   }
 
@@ -77,17 +49,10 @@ export function createSystemCalls(
     player_2: string,
     setGameId: any,
   ) => {
-    const movesId = uuid()
     try {
       const { transaction_hash } = await client.actions.create_private_game(
         account,
         player_2,
-      )
-
-      console.log(
-        await account.waitForTransaction(transaction_hash, {
-          retryInterval: 100,
-        }),
       )
 
       const waitForTransaction = await account.waitForTransaction(
@@ -99,14 +64,9 @@ export function createSystemCalls(
 
       const events = getEvents(waitForTransaction)
 
-      setComponentsFromEvents(contractComponents, events)
       setGameId(events[0].data[3])
     } catch (e) {
       console.log(e)
-    } finally {
-      GameId.removeOverride(movesId)
-      GamePlayer.removeOverride(movesId)
-      MancalaGame.removeOverride(movesId)
     }
   }
 
@@ -117,7 +77,6 @@ export function createSystemCalls(
     setJoinStatus: any,
     index: number,
   ) => {
-    const movesId = uuid()
     try {
       const { transaction_hash } = await client.actions.join_game(
         account,
@@ -129,9 +88,6 @@ export function createSystemCalls(
         retryInterval: 100,
       })
 
-      console.log(receipt)
-
-      setComponentsFromEvents(contractComponents, getEvents(receipt))
       if (receipt.statusReceipt == 'success') {
         setJoinStatus({
           status: 'SUCCESS',
@@ -149,8 +105,6 @@ export function createSystemCalls(
         status: 'ERROR',
         index: index,
       })
-    } finally {
-      GamePlayer.removeOverride(movesId)
     }
   }
 
@@ -159,7 +113,6 @@ export function createSystemCalls(
     game_id: string,
     selected_pit: number,
   ) => {
-    const movesId = uuid()
     try {
       const { transaction_hash } = await client.actions.move(
         account,
@@ -167,27 +120,12 @@ export function createSystemCalls(
         selected_pit,
       )
 
-      console.log(
-        await account.waitForTransaction(transaction_hash, {
-          retryInterval: 100,
-        }),
-      )
-
-      const waitForTransaction = await account.waitForTransaction(
-        transaction_hash,
-        {
-          retryInterval: 100,
-        },
-      )
-
-      const events = getEvents(waitForTransaction)
-
-      setComponentsFromEvents(contractComponents, events)
+      await account.waitForTransaction(transaction_hash, {
+        retryInterval: 100,
+      })
     } catch (error) {
       console.error('Error executing move:', error)
       throw error
-    } finally {
-      MancalaGame.removeOverride(movesId)
     }
   }
 

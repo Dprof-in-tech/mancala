@@ -2,7 +2,7 @@
 mod tests {
     use core::starknet::{ContractAddress, get_caller_address};
     use core::starknet::class_hash::Felt252TryIntoClassHash;
-    use core::starknet::testing::{set_block_number, set_caller_address};
+    use core::starknet::testing::{set_block_number, set_caller_address, set_contract_address};
     use dojo::world::{IWorldDispatcher, IWorldDispatcherTrait};
     use dojo::test_utils::{spawn_test_world, deploy_contract};
 
@@ -20,7 +20,8 @@ mod tests {
         let mut models = array![mancala_game::TEST_CLASS_HASH];
         let mut world = spawn_test_world(models);
         let init_calldata: Span<felt252> = array![].span();
-        let contract_address = world.deploy_contract('salt', actions::TEST_CLASS_HASH.try_into().unwrap(), init_calldata);
+        let contract_address = world
+            .deploy_contract('salt', actions::TEST_CLASS_HASH.try_into().unwrap(), init_calldata);
         let actions_system = IActionsDispatcher { contract_address: contract_address };
         actions_system.create_initial_game_id();
         let game: MancalaGame = actions_system.create_game();
@@ -206,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_game_should_be_finished() {
-        let (mut player_one, _, world, actions_system, mancala_game, _) = setup_game();
+        let (mut player_one, mut player_two, world, actions_system, mancala_game, _) = setup_game();
         player_one.pit1 = 0;
         player_one.pit2 = 0;
         player_one.pit3 = 0;
@@ -225,7 +226,7 @@ mod tests {
         assert!(
             mancala_game_after_move.status == GameStatus::Finished, "game status is not Finished"
         );
-        assert!(mancala_game_after_move.winner == player_one.address, "winner is not player one");
+        assert!(mancala_game_after_move.winner == player_two.address, "winner is not player two");
     }
 
     // New tests for the updated Player model
@@ -264,7 +265,7 @@ mod tests {
         set!(world, (mancala_game));
 
         let (loser, winner) = mancala_game.finish_game(world, game.game_id);
-        
+
         set!(world, (loser, winner));
 
         let winner: Player = get!(world, player_one.address, (Player));
@@ -304,7 +305,7 @@ mod tests {
         // assert!(games_won[0] == 1, "First won game should be 1");
         // assert!(games_won[1] == 2, "Second won game should be 2");
         assert!(games_lost.len() == 1, "Should have 1 game lost");
-        // assert!(games_lost[0] == 3, "Lost game should be 3");
+    // assert!(games_lost[0] == 3, "Lost game should be 3");
     }
 
     #[test]
@@ -319,13 +320,21 @@ mod tests {
         // Set up the game so it will finish after one move
         let mut mancala_game: MancalaGame = get!(world, game.game_id, (MancalaGame));
         let mut p1: GamePlayer = get!(world, (player_one.address, game.game_id), (GamePlayer));
+        let mut p2: GamePlayer = get!(world, (player_two.address, game.game_id), (GamePlayer));
         p1.pit1 = 1;
         p1.pit2 = 0;
         p1.pit3 = 0;
         p1.pit4 = 0;
         p1.pit5 = 0;
         p1.pit6 = 0;
+        p2.pit1 = 0;
+        p2.pit2 = 0;
+        p2.pit3 = 0;
+        p2.pit4 = 0;
+        p2.pit5 = 0;
+        p2.pit6 = 0;
         set!(world, (mancala_game, p1));
+        set!(world, (mancala_game, p2));
 
         // Make the move that should finish the game
         actions_system.move(game.game_id, 1);
@@ -340,7 +349,174 @@ mod tests {
 
         assert!(p2_won.len() == 0, "Player two should have won 0 games");
         assert!(p2_lost.len() == 1, "Player two should have lost 1 game");
-        // assert!(p2_lost[0] == game.game_id, "Player two's lost game should match");
+    // assert!(p2_lost[0] == game.game_id, "Player two's lost game should match");
     }
 
+
+    #[test]
+    #[available_gas(3000000000000)]
+    fn test_forfeited() {
+        let (player_one, player_two, world, actions_system, game, _) = setup_game();
+
+        // Initialize players
+        actions_system.initialize_player(player_one.address);
+        actions_system.initialize_player(player_two.address);
+
+        //player_one forfeits
+        actions_system.forfeited(game.game_id, player_one.address);
+        let mancala_game_after = get!(world, (game.game_id), (MancalaGame));
+        assert!(mancala_game_after.status == GameStatus::Forfeited, "Game is forfeited");
+        assert!(mancala_game_after.winner == player_two.address, "player_two is the winner");
+    }
+
+    #[test]
+    #[available_gas(3000000000000)]
+    fn test_final_capture() {
+        let (player_one, player_two, world, actions_system, game, _) = setup_game();
+
+        // Initialize players
+        actions_system.initialize_player(player_one.address);
+        actions_system.initialize_player(player_two.address);
+
+        // Set up the game so it will finish after one move
+        let mut mancala_game: MancalaGame = get!(world, game.game_id, (MancalaGame));
+        let mut p1: GamePlayer = get!(world, (player_one.address, game.game_id), (GamePlayer));
+        let mut p2: GamePlayer = get!(world, (player_two.address, game.game_id), (GamePlayer));
+        p1.pit1 = 1;
+        p1.pit2 = 0;
+        p1.pit3 = 0;
+        p1.pit4 = 0;
+        p1.pit5 = 0;
+        p1.pit6 = 0;
+        set!(world, (mancala_game, p1));
+        set!(world, (mancala_game, p2));
+
+        let selected_pit: u8 = 1;
+        actions_system.move(game.game_id, selected_pit);
+
+        let mancala_game_after = get!(world, (game.game_id), (MancalaGame));
+        let player_two: GamePlayer = get!(world, (player_two.address, game.game_id), (GamePlayer));
+
+        assert!(player_one.game_id == game.game_id, "player_one game id not correct");
+        assert!(player_two.game_id == game.game_id, "player_two game id not correct");
+
+        // assert all pits are cleared on the board
+        assert!(player_two.pit1 == 0, "pit1 not cleared");
+        assert!(player_two.pit2 == 0, "pit2 does not have correct count");
+        assert!(player_two.pit3 == 0, "pit3 does not have correct count");
+        assert!(player_two.pit4 == 0, "pit4 does not have correct count");
+        assert!(player_two.pit5 == 0, "pit5 does not have correct count");
+        assert!(player_two.pit6 == 0, "pit5 does not have correct count");
+
+        assert!(mancala_game_after.winner == player_two.address, "player_two is the winner");
+    }
+
+    #[test]
+    #[available_gas(3000000000000)]
+    #[should_panic(expected: ('player two did not restart', 'ENTRYPOINT_FAILED'))]
+    fn test_should_revert_if_only_player_one_has_requested_to_restart() {
+        let (_player_one, _player_two, _, _, _, contract_address) = setup_game();
+        let player_one_address = starknet::contract_address_const::<0x456>();
+        let player_two_address = starknet::contract_address_const::<0x455>();
+
+        let actions_system = IActionsDispatcher { contract_address: contract_address };
+
+        set_contract_address(player_one_address);
+        let game_two: MancalaGame = actions_system.create_game();
+
+        set_contract_address(player_two_address);
+        actions_system.join_game(game_two.game_id, player_two_address);
+        // player 1 requests to restart
+        set_contract_address(player_one_address);
+        actions_system.request_restart_game(2);
+
+        actions_system.restart_game(2, true);
+    }
+    #[test]
+    #[available_gas(3000000000000)]
+    #[should_panic(expected: ('player one did not restart', 'ENTRYPOINT_FAILED'))]
+    fn test_should_revert_if_only_player_two_has_requested_to_restart() {
+        let (_player_one, _player_two, _, _, _, contract_address) = setup_game();
+        let player_one_address = starknet::contract_address_const::<0x456>();
+        let player_two_address = starknet::contract_address_const::<0x455>();
+
+        let actions_system = IActionsDispatcher { contract_address: contract_address };
+
+        set_contract_address(player_one_address);
+        let game_two: MancalaGame = actions_system.create_game();
+
+        set_contract_address(player_two_address);
+        actions_system.join_game(game_two.game_id, player_two_address);
+        // player 1 requests to restart
+        set_contract_address(player_two_address);
+        actions_system.request_restart_game(2);
+
+        actions_system.restart_game(2, true);
+    }
+
+    #[test]
+    #[available_gas(3000000000000)]
+    fn test_restart_function_with_two_players() {
+        let (_player_one, _player_two, world, _, _, contract_address) = setup_game();
+        let player_one_address = starknet::contract_address_const::<0x456>();
+        let player_two_address = starknet::contract_address_const::<0x455>();
+
+        let actions_system = IActionsDispatcher { contract_address: contract_address };
+
+        set_contract_address(player_one_address);
+        let game_two: MancalaGame = actions_system.create_game();
+
+        set_contract_address(player_two_address);
+        actions_system.join_game(game_two.game_id, player_two_address);
+
+        //  player one moves
+        let selected_pit: u8 = 1;
+        set_contract_address(player_one_address);
+        actions_system.move(game_two.game_id, selected_pit);
+        let player_one_game: GamePlayer = get!(
+            world, (player_one_address, game_two.game_id), (GamePlayer)
+        );
+
+        assert!(player_one_game.pit1 == 0, "pit1 not cleared");
+
+        // player two moves
+        set_contract_address(player_two_address);
+        actions_system.move(game_two.game_id, selected_pit);
+        let player_two_game: GamePlayer = get!(
+            world, (player_one_address, game_two.game_id), (GamePlayer)
+        );
+
+        assert!(player_two_game.pit1 == 0, "pit1 b not cleared");
+
+        // player 1 requests to restart
+        set_contract_address(player_one_address);
+        actions_system.request_restart_game(2);
+
+        // player 2 requests to restart
+        set_contract_address(player_two_address);
+        actions_system.request_restart_game(2);
+
+        let mancala_game: MancalaGame = actions_system.restart_game(2, true);
+        let player_one_game: GamePlayer = get!(
+            world, (player_one_address, game_two.game_id), (GamePlayer)
+        );
+        let player_two_game: GamePlayer = get!(
+            world, (player_one_address, game_two.game_id), (GamePlayer)
+        );
+
+        assert(mancala_game.is_private == true, 'mancala game is not private');
+        assert(player_one_game.pit1 == 4, 'p1 pit 1 not init correctly');
+        assert(player_one_game.pit2 == 4, 'p1 pit 2 not init correctly');
+        assert(player_one_game.pit3 == 4, 'p1 pit 3 not init correctly');
+        assert(player_one_game.pit4 == 4, 'p1 pit 4 not init correctly');
+        assert(player_one_game.pit5 == 4, 'p1 pit 5 not init correctly');
+        assert(player_one_game.pit6 == 4, 'p1 pit 6 not init correctly');
+        assert(player_two_game.pit6 == 4, 'p2 pit 1 not init correctly');
+        assert(player_two_game.pit6 == 4, 'p2 pit 2 not init correctly');
+        assert(player_two_game.pit6 == 4, 'p2 pit 3 not init correctly');
+        assert(player_two_game.pit6 == 4, 'p2 pit 4 not init correctly');
+        assert(player_two_game.pit6 == 4, 'p2 pit 5 not init correctly');
+        assert(player_two_game.pit6 == 4, 'p2 pit 6 not init correctly');
+    }
 }
+
