@@ -2,71 +2,48 @@ import { live_duels_header, player_header } from "@/lib/constants.ts";
 import { Card, Typography } from "@material-tailwind/react";
 import clsx from "clsx";
 import { Button } from "../ui/button.tsx";
-import { useProvider } from "@starknet-react/core";
-import { StarknetIdNavigator } from "starknetid.js";
-import { constants, StarkProfile } from "starknet";
+import { useAccount } from "@starknet-react/core";
 import { truncateString } from "@/lib/utils.ts";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useDojo } from "@/dojo/useDojo.tsx";
 import { LiveSkeleton } from "./live-skeleton.tsx";
 import { Link, useNavigate } from "react-router-dom";
+import { UserIcon } from "@heroicons/react/24/solid";
 
-export default function LiveDuels({ games, transactions }: { games: any, transactions: any }) {
-    const { provider } = useProvider();
+export default function LiveDuels({ games }: { games: any }) {
     const navigate = useNavigate();
-    const starknetIdNavigator = useMemo(() => {
-        return new StarknetIdNavigator(
-            provider,
-            constants.StarknetChainId.SN_MAIN
-        );
-    }, [provider])
-    const [challengers, setChallengers] = useState<StarkProfile[]>();
-    const [challenged, setChallenged] = useState<StarkProfile[]>();
-    const [joinStatus, setJoinStatus] = useState<{
-        status: string;
-        index: number;
-    }>();
-    const challengerAddresses = games?.map((game: any) => game.node.player_one);
-    const challengedAddresses = games?.map((game: any) => game.node.player_two);
-    useEffect(() => {
-        if (!starknetIdNavigator || !challengerAddresses) return;
-        (async () => {
-            const challengerData = await starknetIdNavigator?.getStarkProfiles(challengerAddresses)
-            const challengedData = await starknetIdNavigator?.getStarkProfiles(challengedAddresses)
-            if (!challengerData) return;
-            if (challengerData) setChallengers(challengerData);
-            if (!challengedData) return;
-            if (challengedData) setChallenged(challengedData);
-        })();
-    }, [challengerAddresses, challengedAddresses, starknetIdNavigator]);
-    const data = challengers?.map((challenger, index) => {
+    const [joinStatus, setJoinStatus] = useState<{status: string; index: number;}>();
+    const data = games?.map((data: any, index: number) => {
         return {
-            challenger: challenger,
-            challenged: challenged ? challenged[index] : null,
-            date: transactions[index].node.executedAt,
+            challenger: data?.node.player_one,
+            challenged: data?.node.player_two,
+            date: data?.node.entity?.executedAt,
         }
     })
-    const { account, system } = useDojo()
+    const { system } = useDojo()
+    const account = useAccount()
     const join_game = async (game_id: string, index: number) => {
         setJoinStatus({
             status: "JOINING",
             index: index,
         })
-        const player_2_address = account.account.address;
-        await system.join_game(account.account, game_id, player_2_address, setJoinStatus, index);
+        const player_2_address = account.account?.address;
+        if (account.account && player_2_address) {
+            await system.join_game(account.account, game_id, player_2_address, setJoinStatus, index);
+        }
     }
 
     const runGameAction = (index: number) => {
-        if (
-            games[index].node.player_one === account.account.address
-            ||
-            games[index].node.player_two === account.account.address
-        ) {
-            navigate(`/games/${games[index].node.game_id}`)
+        const game = games[index].node;
+        const isPlayerInGame = game.player_one === account.account?.address || game.player_two === account.account?.address;
+        const isGameFull = game.player_one !== "0x0" && game.player_two !== "0x0";
+    
+        if (isPlayerInGame || isGameFull) {
+            navigate(`/games/${game.game_id}`);
         } else {
-            join_game(games[index].node.game_id, index)
+            join_game(game.game_id, index)
                 .then(res => console.info(res))
-                .catch(errorJoiningGame => console.error(errorJoiningGame))
+                .catch(errorJoiningGame => console.error(errorJoiningGame));
         }
     }
 
@@ -119,9 +96,14 @@ export default function LiveDuels({ games, transactions }: { games: any, transac
                                             className={clsx(!isLast && "border-b border-[#23272F]", "w-full bg-[#0F1116] flex flex-row items-center")}>
                                             <td className="flex flex-row items-center p-4 space-x-5 w-[200px] justify-start">
                                                 <div className="flex flex-row items-center justify-center space-x-2.5 w-fit">
-                                                    <img src={data.challenger.profilePicture} width={35} height={35}
+                                                    {/* <img src={data.challenger.profilePicture} width={35} height={35}
                                                         alt={`${data.challenger.name} profile picture`}
-                                                        className="rounded-full" />
+                                                        className="rounded-full" /> */}
+                                                    <div className="p-1 rounded-full bg-gradient-to-r bg-[#15181E] from-[#2E323A] via-[#4B505C] to-[#1D2026] relative">
+                                                        <div className="bg-[#15171E] rounded-full p-2.5">
+                                                            <UserIcon color="#F58229" className="w-6 h-6" />
+                                                        </div>
+                                                    </div>
                                                     <p
                                                         className="font-normal text-white"
                                                     >
@@ -133,9 +115,14 @@ export default function LiveDuels({ games, transactions }: { games: any, transac
                                                 {
                                                     games[index].node.player_two !== "0x0" ?
                                                         <div className="flex flex-row items-center space-x-2.5 w-fit">
-                                                            <img src={data.challenged.profilePicture} width={35} height={35}
+                                                            {/* <img src={data.challenged.profilePicture} width={35} height={35}
                                                                 alt={`${data.challenged.name} profile picture`}
-                                                                className="rounded-full" />
+                                                                className="rounded-full" /> */}
+                                                            <div className="p-1 rounded-full bg-gradient-to-r bg-[#15181E] from-[#2E323A] via-[#4B505C] to-[#1D2026] relative">
+                                                                <div className="bg-[#15171E] rounded-full p-2.5">
+                                                                    <UserIcon color="#F58229" className="w-6 h-6" />
+                                                                </div>
+                                                            </div>
                                                             <p
                                                                 className="font-normal text-white"
                                                             >
@@ -153,18 +140,18 @@ export default function LiveDuels({ games, transactions }: { games: any, transac
                                             </td>
                                             <td className="flex flex-row justify-center w-[200px]">
                                                 <Link
-                                                    to={(games[index].node.player_one === account.account.address || games[index].node.player_two === account.account.address) ? `/games/${games[index].node.game_id}` : ''}>
+                                                    to={(games[index].node.player_one === account.account?.address || games[index].node.player_two === account.account?.address) 
+                                                    ? `/games/${games[index].node.game_id}` : 
+                                                    games[index].node.player_one !== "0x0" && games[index].node.player_two !== "0x0" 
+                                                    ?  `/games/${games[index].node.game_id}` : ''}
+                                                >
                                                     <Button
                                                         className={"text-[#F58229] bg-transparent active:bg-transparent hover:bg-transparent"}
                                                         onClick={() => runGameAction(index)}
                                                     >
                                                         {
-                                                            (games[index].node.player_one === account.account.address || games[index].node.player_two === account.account.address)
-                                                                ?
-                                                                "Go to game"
-                                                                :
-                                                                joinStatus?.status === "JOINING" && joinStatus.index == index
-                                                                    ?
+                                                            (games[index].node.player_one === account.account?.address || games[index].node.player_two === account.account?.address)
+                                                                ? "Go to game" : joinStatus?.status === "JOINING" && joinStatus.index == index ?
                                                                     <div
                                                                         className="flex flex-row items-center justify-center space-x-1">
                                                                         <svg className="text-white animate-spin w-fit"
@@ -187,13 +174,8 @@ export default function LiveDuels({ games, transactions }: { games: any, transac
                                                                         <p className="text-[#FCE3AA] font-semibold">Joining...</p>
                                                                     </div>
                                                                     : joinStatus?.status === "ERROR" && joinStatus.index === index
-                                                                        ?
-                                                                        "Cannot join game" :
-                                                                        joinStatus?.status === "SUCCESS" && joinStatus.index === index
-                                                                            ?
-                                                                            "Go to game"
-                                                                            :
-                                                                            "Join game"
+                                                                        ? "Cannot join game" : joinStatus?.status === "SUCCESS" && joinStatus.index === index ? "Go to game"
+                                                                        : games[index].node.player_one !== "0x0" && games[index].node.player_two !== "0x0" ? "Watch game" : "Join game"
                                                         }</Button>
                                                 </Link>
                                             </td>
